@@ -1,6 +1,8 @@
 # AI Interactions Log
 
-> **Stretch features only.** Only fill in the sections that apply to stretch features you attempted. If you did not attempt a stretch feature, leave its section blank or delete it. This file is not required for the core project.
+> The project's **primary AI feature is Retrieval-Augmented Generation (RAG)** — see
+> the "AI Feature" section of the README and `src/rag.py`. This log documents the AI
+> *coding agent* I used to build it.
 
 ---
 
@@ -10,19 +12,34 @@
 
 **What task did you give the agent?**
 
-<!-- Describe the goal you asked the agent to accomplish -->
+Turn the rule-based recommender into something that "does something useful with AI" by
+adding a fully integrated RAG feature, with guardrails, logging, tests, reproducible
+setup, and a fallback so it runs without an API key.
 
 **Prompts used:**
 
-<!-- Paste the key prompts you gave the agent -->
+- "This project should do something useful with AI… add a RAG / agentic / testing
+  feature that meaningfully changes how the system behaves, with logging, guardrails,
+  and clear setup steps."
+- Follow-up decisions: use **RAG explanations** as the centerpiece, and support the
+  **real Claude API with an offline fallback** for reproducible grading.
 
 **What did the agent generate or change?**
 
-<!-- List the files edited, code generated, or commands run -->
+- `src/rag.py` — retrieval-context builder, Claude call (structured output), grounding
+  guardrail, deterministic offline fallback, logging.
+- `src/main.py` — wired the grounded write-up in as the primary output; added logging
+  and `.env` loading.
+- `tests/test_rag.py` — guardrail + fallback tests.
+- `requirements.txt`, `.env.example`, `.gitignore`, `README.md`, `model_card.md`.
 
 **What did you verify or fix manually?**
 
-<!-- Describe anything the agent got wrong or that required human review -->
+- Ran `pytest` (8 passing) and `python -m src.main` to confirm the offline fallback
+  path works and logs correctly.
+- Confirmed the installed Anthropic SDK actually exposes `messages.parse(...)` +
+  `output_format` before relying on it, and that the "SDK present but no key" branch
+  degrades gracefully instead of erroring.
 
 ---
 

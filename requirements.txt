@@ -1,3 +1,8 @@
 pandas
 pytest
 streamlit
+
+# AI feature (Retrieval-Augmented Generation): calls the Claude API to write a
+# grounded, natural-language explanation of the retrieved recommendations.
+anthropic>=0.40
+python-dotenv>=1.0

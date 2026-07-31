@@ -1,334 +1,266 @@
-# 🎵 Music Recommender Simulation
+# 🎵 Music Recommender Simulation (with an AI explanation layer)
 
-## Project Summary
+## The original project
 
-In this project you will build and explain a small music recommender system.
+This builds on CodePath's **Music Recommender Simulation** starter. The starter's goal
+was to model, in plain Python, how a real recommender turns people and items into data:
+represent songs and a user "taste profile" as structured records, design a transparent
+scoring rule that ranks songs against that profile, and then reflect on what the system
+gets right, what it gets wrong, and how those blind spots mirror real-world recommenders.
+It shipped with a ~10-song catalog and a scaffolded scoring recipe for the student to
+complete.
 
-Your goal is to:
+## Title and Summary
 
-- Represent songs and a user "taste profile" as data
-- Design a scoring rule that turns that data into recommendations
-- Evaluate what your system gets right and wrong
-- Reflect on how this mirrors real world AI recommenders
+**What it does:** given a listener persona (favorite genre, mood, target energy, and
+whether they like acoustic music), the app scores a catalog of songs with a hand-written
+weighted-sum rule, retrieves the best-fitting top 5, and then uses the **Claude API** to
+write a short, natural-language explanation of *why* those songs fit — grounded strictly
+in the retrieved songs' real attributes.
 
-Replace this paragraph with your own summary of what your version does.
-
----
-
-## How The System Works
-
-Real-world recommenders turn users and items into data, score how well each item fits the
-user, and rank the best ones first — learning preferences from behavior. My version is a
-transparent stand-in: it uses a hand-written scoring rule instead of learning, and
-**prioritizes genre first**, then mood, with energy and acoustic closeness as tie-breakers.
-
-**Features used:**
-
-- **`Song`:** `genre`, `mood`, `energy`, `acousticness` (scored) + `id`, `title`, `artist`.
-- **`UserProfile`:** `favorite_genre`, `favorite_mood`, `target_energy`, `likes_acoustic`.
-
-Some prompts to answer:
-
-- What features does each `Song` use in your system
-  - For example: genre, mood, energy, tempo
-- What information does your `UserProfile` store
-- How does your `Recommender` compute a score for each song
-- How do you choose which songs to recommend
-
-You can include a simple diagram or bullet list if helpful.
+**Why it matters:** it turns a bare score table into a **Retrieval-Augmented Generation
+(RAG)** pipeline. The deterministic scorer is the *retriever*; Claude is the *generator*.
+Crucially, the AI is never allowed to invent songs or numbers, and a code guardrail
+verifies that on every run — so the output stays trustworthy. This is a small, auditable
+model of exactly the pattern production systems use: retrieve real evidence, generate a
+grounded explanation, and verify the model didn't stray.
 
 ---
 
-### My Design
+## Architecture Overview
 
-#### Song features used
-
-Each `Song` carries 7 attributes, but my recipe scores on the **core 4** that map
-directly to a user preference:
-
-- **genre** (categorical, e.g. `pop`, `lofi`)
-- **mood** (categorical, e.g. `happy`, `chill`)
-- **energy** (0.0–1.0, how driving/intense the track feels)
-- **acousticness** (0.0–1.0, how acoustic vs. electronic it sounds)
-
-The remaining features (`tempo_bpm`, `valence`, `danceability`) are kept in the data
-for later experiments but are not scored.
-
-#### What the `UserProfile` stores
-
-- **favorite_genre** — the genre they want most
-- **favorite_mood** — the mood they want most
-- **target_energy** — their ideal energy level (0.0–1.0)
-- **likes_acoustic** — whether they prefer acoustic (`True`) or electronic (`False`) tracks
-
-#### The Algorithm Recipe (scoring rules)
-
-The score is a **weighted sum** of four rules. Each rule also produces a short
-*reason* used to explain the recommendation.
-
-| # | Rule | How it scores | Weight |
-|---|------|---------------|--------|
-| 1 | **Genre match** | `1` if `song.genre == favorite_genre`, else `0` | × 3.0 |
-| 2 | **Mood match** | `1` if `song.mood == favorite_mood`, else `0` | × 1.5 |
-| 3 | **Energy fit** | `1 - abs(target_energy - song.energy)` (closer = higher) | × 1.0 |
-| 4 | **Acoustic fit** | if `likes_acoustic`: `song.acousticness`; else `1 - song.acousticness` | × 1.0 |
+The full diagram lives in [system_diagram.md](system_diagram.md). In short, data flows
+through four stages:
 
 ```
-score = 3.0 * genre_match
-      + 1.5 * mood_match
-      + 1.0 * energy_fit
-      + 1.0 * acoustic_fit        # max ≈ 6.5
+📥 Input            ⚙️ Retriever              🤖 Agent (RAG)             📤 Output
+songs.csv    →   load_songs / score_song  →  build prompt → Claude  →  explanation
+persona          recommend_songs (top-k,     _validate_grounding()      + scoring table
+                 diversity-penalized)        ↳ retry once → fallback     + run log
 ```
 
-**Why these weights:** genre and mood are categorical (hit-or-miss) and carry the most
-weight, so a same-genre song almost always outranks a different-genre one. Genre is
-weighted **twice** as high as mood (3.0 vs 1.5) so it clearly dominates: a genre match
-plus *any one* other matching rule beats a song that matches everything *except* genre.
-The only way a wrong-genre song can win is by being a near-perfect match on mood, energy,
-and acoustic all at once (max 1.5 + 1.0 + 1.0 = 3.5). Energy and acoustic fit are
-continuous 0–1 measures of "how close," so they give partial credit and act as
-tie-breakers.
-
-#### Choosing what to recommend
-
-1. Score every song in the catalog with the rules above.
-2. Sort by total score, highest first.
-3. Return the top `k` songs, each with its score and the reasons that earned points.
-
-#### Worked example
-
-```
-User: genre=pop, mood=happy, target_energy=0.8, likes_acoustic=False
-
-"Sunrise City"  (pop,  happy, energy=0.82, acoustic=0.18)
-  3.0*1 + 1.5*1 + 1.0*(1-0.02) + 1.0*(1-0.18) = 6.30  → ranked #1
-"Midnight Coding" (lofi, chill, energy=0.42, acoustic=0.71)
-  3.0*0 + 1.5*0 + 1.0*(1-0.38) + 1.0*(1-0.71) = 0.91
-```
-
-#### Design visualization
-
-Input — load_songs() reads data/songs.csv into a list; user_prefs holds the taste profile (main.py:29).
-Process — recommend_songs() loops every song through score_song(): genre × 3.0, mood × 1.5, energy fit × 1.0, acoustic fit × 1.0, summed into one score.
-Output — sort by score descending, slice [:k], print each Top-K pick with its "Because" reasons (recommender.py).
-
-#### Expected biases
-
-Because the recipe is a hand-tuned weighted sum, its blind spots are baked into the weights:
-
-- **Over-prioritizes genre.** Genre carries the largest weight (3.0) and is hit-or-miss, so a
-  song in the "wrong" genre almost never surfaces — even if it's a perfect match on mood, energy,
-  and acoustic feel (those max out at 3.5 combined, and only in a near-perfect case). Great
-  cross-genre songs the user would love are effectively invisible.
-- **Popularity/echo-chamber effect.** By always rewarding the favorite genre and mood, the system
-  keeps recommending more of the same and never introduces variety or discovery — the same
-  filter-bubble dynamic real recommenders are criticized for.
-- **Under-weights nuance.** `tempo_bpm`, `valence`, and `danceability` aren't scored at all, so two
-  songs that feel very different (a frantic vs. a mellow track at the same energy) can tie. Mood is
-  also treated as a single exact-match label, so near-miss moods ("calm" vs. "chill") score zero.
-- **Catalog and cold-start limits.** Scores are only meaningful relative to this tiny catalog, and a
-  user with an unusual profile (no matching genre) gets weak, near-random rankings.
+1. **Input** — a song catalog (`data/songs.csv`) and a listener persona from
+   `USER_PROFILES` in [src/main.py](src/main.py).
+2. **Retriever** ([src/recommender.py](src/recommender.py)) — deterministically scores
+   every song and greedily selects a diversity-aware top-k. This is the "retrieval" step;
+   the returned rows are the only documents the AI will see.
+3. **Agent / RAG** ([src/rag.py](src/rag.py)) — builds a prompt containing *only* the
+   persona and the retrieved rows, asks Claude for one grounded reason per song, then runs
+   `_validate_grounding()` to confirm the model discussed exactly the retrieved songs and
+   nothing else. On failure it retries once, then falls back to a deterministic template.
+4. **Output** ([src/main.py](src/main.py)) — prints the AI (or fallback) explanation, an
+   auditable ASCII scoring table underneath, and writes a run trail to
+   `logs/recommender.log`. Two layers of automated tests plus human review sit on top.
 
 ---
 
-## Getting Started
+## Setup Instructions
 
-### Setup
-
-1. Create a virtual environment (optional but recommended):
+1. **(Optional) Create a virtual environment:**
 
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate      # Mac or Linux
+   python3 -m venv .venv
+   source .venv/bin/activate      # macOS / Linux
    .venv\Scripts\activate         # Windows
+   ```
 
-2. Install dependencies
+2. **Install dependencies:**
 
-```bash
-pip install -r requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Run the app:
+3. **(Optional) Enable the AI explanation.** Copy the env template and add your key:
 
-```bash
-python -m src.main
-```
+   ```bash
+   cp .env.example .env
+   # then edit .env and set ANTHROPIC_API_KEY=sk-ant-...
+   ```
 
-### Running Tests
+   The key is read from `.env` automatically (via `python-dotenv`) or from the
+   `ANTHROPIC_API_KEY` environment variable. **This step is optional** — without a key the
+   app runs a deterministic offline fallback and clearly reports which path it used.
 
-Run the starter tests with:
+4. **Run the app:**
 
-```bash
-pytest
-```
+   ```bash
+   python3 -m src.main
+   ```
 
-You can add more tests in `tests/test_recommender.py`.
+   To try a different listener, change `profile_name` in `main()` to any key in
+   `USER_PROFILES` (`"High-Energy Pop"`, `"Chill Lofi"`, `"Deep Intense Rock"`,
+   `"Late-Night Jazz"`).
+
+5. **Run the tests** (no API key required):
+
+   ```bash
+   pytest
+   ```
+
+   `tests/test_recommender.py` checks scoring/ranking; `tests/test_rag.py` checks the
+   grounding guardrail (hallucinated song, dropped song, empty reason) and the offline
+   fallback.
 
 ---
 
-## Sample Recommendation Output
+## Sample Interactions
 
+Each interaction is one persona (the **input**) producing a grounded explanation (the
+**AI output**), with the transparent scoring table printed underneath.
 
-```
-Top recommendations for: Chill Lofi
-===================================
+### Example 1 — "Late-Night Jazz" (real run, offline fallback path)
 
-1. Library Rain — Paper Lanterns   (score: 6.31)
-     • genre match (+3.0)
-     • mood match (+1.5)
-     • energy fit (+0.95)
-     • acoustic fit (+0.86)
+**Input:** `favorite_genre=jazz, favorite_mood=relaxed, target_energy=0.35, likes_acoustic=True`
 
-2. Midnight Coding — LoRoom   (score: 6.19)
-     • genre match (+3.0)
-     • mood match (+1.5)
-     • energy fit (+0.98)
-     • acoustic fit (+0.71)
-
-3. Focus Flow — LoRoom   (score: 4.78)
-     • genre match (+3.0)
-     • energy fit (+1.00)
-     • acoustic fit (+0.78)
-
-4. Spacewalk Thoughts — Orbit Bloom   (score: 3.30)
-     • mood match (+1.5)
-     • energy fit (+0.88)
-     • acoustic fit (+0.92)
-
-5. Requiem for Dawn — String Theory Ensemble   (score: 1.88)
-     • energy fit (+0.93)
-     • acoustic fit (+0.95)
+Because no `ANTHROPIC_API_KEY` was set, the app degraded gracefully and reported it:
 
 ```
+2026-07-31 INFO recommender.rag: ANTHROPIC_API_KEY not set; using offline fallback.
 
-```
-Top recommendations for: High-Energy Pop
-========================================
-
-1. Sunrise City — Neon Echo   (score: 6.24)
-     • genre match (+3.0)
-     • mood match (+1.5)
-     • energy fit (+0.92)
-     • acoustic fit (+0.82)
-
-2. Gym Hero — Max Pulse   (score: 4.92)
-     • genre match (+3.0)
-     • energy fit (+0.97)
-     • acoustic fit (+0.95)
-
-3. Rooftop Lights — Indigo Parade   (score: 3.01)
-     • mood match (+1.5)
-     • energy fit (+0.86)
-     • acoustic fit (+0.65)
-
-4. Basslight — Deep Circuit   (score: 1.91)
-     • energy fit (+0.95)
-     • acoustic fit (+0.96)
-
-5. Iron Verdict — Grave Meridian   (score: 1.91)
-     • energy fit (+0.93)
-     • acoustic fit (+0.98)
-
-```
-
-
-```
-Top recommendations for: Deep Intense Rock
-==========================================
-
-1. Storm Runner — Voltline   (score: 6.39)
-     • genre match (+3.0)
-     • mood match (+1.5)
-     • energy fit (+0.99)
-     • acoustic fit (+0.90)
-
-2. Gym Hero — Max Pulse   (score: 3.44)
-     • mood match (+1.5)
-     • energy fit (+0.99)
-     • acoustic fit (+0.95)
-
-3. Basslight — Deep Circuit   (score: 1.93)
-     • energy fit (+0.97)
-     • acoustic fit (+0.96)
-
-4. Iron Verdict — Grave Meridian   (score: 1.93)
-     • energy fit (+0.95)
-     • acoustic fit (+0.98)
-
-5. Concrete Jungle — Ill Cadence   (score: 1.85)
-     • energy fit (+0.93)
-     • acoustic fit (+0.92)
-
-```
-
-
-
-```
 Top recommendations for: Late-Night Jazz
 ========================================
+Explanation source: offline fallback — no API key; set ANTHROPIC_API_KEY for AI output
 
-1. Coffee Shop Stories — Slow Stereo   (score: 6.37)
-     • genre match (+3.0)
-     • mood match (+1.5)
-     • energy fit (+0.98)
-     • acoustic fit (+0.89)
+Here are 5 picks for the Late-Night Jazz taste (favorite genre 'jazz', mood 'relaxed'),
+chosen from the catalog by the scoring rules and explained from each song's attributes.
 
-2. Requiem for Dawn — String Theory Ensemble   (score: 1.93)
-     • energy fit (+0.98)
-     • acoustic fit (+0.95)
-
-3. Library Rain — Paper Lanterns   (score: 1.86)
-     • energy fit (+1.00)
-     • acoustic fit (+0.86)
-
-4. Spacewalk Thoughts — Orbit Bloom   (score: 1.85)
-     • energy fit (+0.93)
-     • acoustic fit (+0.92)
-
-5. Focus Flow — LoRoom   (score: 1.73)
-     • energy fit (+0.95)
-     • acoustic fit (+0.78)
-
+1. Coffee Shop Stories — Slow Stereo  (score 6.37)
+   - jazz/relaxed track at energy 0.37 and acousticness 0.89
+2. Requiem for Dawn — String Theory Ensemble  (score 1.93)
+   - classical/melancholy track at energy 0.33 and acousticness 0.95
+3. Library Rain — Paper Lanterns  (score 1.86)
+   - lofi/chill track at energy 0.35 and acousticness 0.86
+4. Spacewalk Thoughts — Orbit Bloom  (score 1.85)
+   - ambient/chill track at energy 0.28 and acousticness 0.92
+5. Highland Echoes — Cinder Hollow  (score 1.73)
+   - folk/nostalgic track at energy 0.44 and acousticness 0.82
 ```
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->
+Note the top pick nails genre **and** mood (score 6.37), while ranks 2–5 are close only
+on energy/acoustic — exactly the "one real match, then filler" behavior the model card
+discusses for niche genres.
+
+### Example 2 — "Late-Night Jazz" (AI path, with `ANTHROPIC_API_KEY` set)
+
+**Input:** *same persona.* With a key, Claude replaces the template with a warmer,
+attribute-grounded write-up. Header becomes `Explanation source: Claude (grounded in
+retrieved songs)`, and a representative response looks like:
+
+```
+For a late-night jazz mood, these five lean quiet, acoustic, and low-energy — right
+where you asked to be.
+
+1. Coffee Shop Stories — Slow Stereo  (score 6.37)
+   - A jazz/relaxed track at 0.37 energy and 0.89 acousticness — a direct hit on your
+     genre and mood, and about as mellow and acoustic as the catalog gets.
+2. Requiem for Dawn — String Theory Ensemble  (score 1.93)
+   - Not jazz, but its 0.33 energy and 0.95 acousticness make it the closest match to
+     your calm, acoustic preference.
+...
+```
+
+The guardrail confirms every title here is in the retrieved set before this ever prints;
+if Claude had named a song outside the top 5, the run would retry once and then fall back
+to the Example 1 output rather than show an ungrounded claim.
+
+### Example 3 — "High-Energy Pop" (near-opposite persona)
+
+**Input:** `favorite_genre=pop, favorite_mood=happy, target_energy=0.90, likes_acoustic=False`
+
+The same pipeline retrieves a completely different, loud/electronic top list:
+
+```
+1. Sunrise City — Neon Echo   (score 6.24)   • genre match (+3.0) • mood match (+1.5) • energy fit (+0.92) • acoustic fit (+0.82)
+2. Gym Hero — Max Pulse       (score 4.92)   • genre match (+3.0) • energy fit (+0.97) • acoustic fit (+0.95)
+3. Rooftop Lights — Indigo Parade (score 3.01) • mood match (+1.5) • energy fit (+0.86) • acoustic fit (+0.65)
+```
+
+Comparing Example 1 and Example 3 shows the scorer responding sharply to the persona:
+genre and mood flip the entire list, and `likes_acoustic=False` inverts the acoustic term
+so electronic tracks now score highest.
 
 ---
 
-## Experiments You Tried
+## Design Decisions & Trade-offs
 
-Use this section to document the experiments you ran. For example:
+**Transparent scoring instead of a learned model.** The ranking is a hand-written weighted
+sum, not a trained model, so every recommendation can explain itself and the biases are
+readable straight off the weights. The score is:
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+```
+score = 3.0 * genre_match      # categorical hit/miss
+      + 1.5 * mood_match        # categorical hit/miss
+      + 1.0 * energy_fit        # 1 - |target_energy - song.energy|
+      + 1.0 * acoustic_fit      # acousticness, or 1 - acousticness if not likes_acoustic
+                                # max ≈ 6.5
+```
+
+Genre is weighted twice as high as mood so it clearly dominates; energy and acoustic fit
+are continuous "how close" terms that give partial credit and act as tie-breakers.
+**Trade-off:** the heavy genre weight over-prioritizes genre — a great cross-genre song is
+nearly invisible, and in a long-tailed catalog niche-genre users get one real match then
+generic filler.
+
+**A greedy diversity penalty on top of the score.** Selection is greedy (not a plain
+sort): as songs are chosen, later candidates are penalized for repeating an already-picked
+artist (−2.0 each) or genre (−1.0 each), so one artist can't flood the list.
+**Trade-off:** this can bump a slightly-lower-scoring song above a higher one for the sake
+of variety — a deliberate exchange of pure relevance for discovery.
+
+**Real RAG, not decoration.** The AI only ever sees the retrieved rows and is told they
+are its only source of truth; a structured-output schema forces one reason per song.
+**Trade-off:** grounding the model this tightly means it can't bring in outside music
+knowledge (e.g. "fans of X also like Y") — by design, in exchange for verifiability.
+
+**Verify, don't trust.** `_validate_grounding()` rejects any generation that invents a
+song, drops a retrieved one, or leaves a reason empty; it retries once, then falls back.
+**Trade-off:** the extra check and retry cost latency and occasionally reject a borderline
+answer, but an ungrounded (hallucinated) explanation is never printed.
+
+**Graceful degradation over hard dependency.** With no API key, a missing SDK, or an API
+error, the app builds a deterministic template from the same retrieved rows and prints
+which path ran. **Trade-off:** the fallback is blander than Claude's prose, but the app
+always runs, tests always pass offline, and the output source is never ambiguous.
+
+**Unscored features kept in the data.** `tempo_bpm`, `valence`, and `danceability` are
+loaded but not scored — kept for later experiments. **Trade-off:** simpler, more legible
+scoring today at the cost of nuance (two very different tracks at the same energy can tie).
 
 ---
 
-## Limitations and Risks
+## Testing Summary
 
-Summarize some limitations of your recommender.
+**8/8 automated tests pass** (`pytest`, offline, no API key). The grounding guardrail
+correctly rejected hallucinated songs, dropped picks, and empty reasons in every test;
+the offline fallback produced grounded text with the key unset. Every API failure mode is
+logged and degrades to a deterministic template — the app never crashes and always reports
+which path ran. Weakest point: with genre weighted 3.0 and a thin catalog, niche-genre
+personas still get one real match then filler.
 
-Examples:
+**What worked.** `tests/test_recommender.py` (scoring/ranking) and `tests/test_rag.py` (the
+grounding guardrail and offline fallback, no API key needed) both pass, and manual runs of
+all four personas behaved as expected — hallucinated picks are rejected, and near-opposite
+tastes (Pop vs. Jazz) produced non-overlapping lists.
 
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
+**What didn't.** Tuning the weights took several passes: early on the energy/acoustic terms
+overpowered genre/mood, so wrong-genre songs ranked too high. Genre 3.0 / mood 1.5 / energy
+1.0 / acoustic 1.0 fixed it — but exposed a real limitation: with genre weighted so heavily
+and the catalog thin outside pop and lofi, niche-genre users get one match then filler.
 
-You will go deeper on this in your model card.
-
----
+**What I learned.** The weights *are* the model — one number changes the whole list — so the
+only way to trust them was to test each persona and read the reasons behind every pick.
 
 ## Reflection
 
-Read and complete `model_card.md`:
+The biggest lesson was to **verify, don't trust** when AI is in the loop. The real work
+wasn't the model call but everything around it — giving Claude only the retrieved songs,
+checking each generation against that set, and falling back when the check failed. The AI
+writes the prose, but plain code decides whether it reaches the user. It also showed how a
+few weights quietly steer every result, leaving me more skeptical of everyday recommenders.
 
-[**Model Card**](model_card.md)
+---
 
-Write 1 to 2 paragraphs here about what you learned:
+## Related documents
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
-
-
-
+- [model_card.md](model_card.md) — intended use, data, strengths, limitations/bias, and evaluation.
+- [system_diagram.md](system_diagram.md) — the full architecture diagram and how to read it.

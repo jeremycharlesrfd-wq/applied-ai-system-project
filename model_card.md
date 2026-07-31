@@ -26,7 +26,13 @@ The model gives a song points when it matches. Genre is worth the most (3 points
 
 It adds up the points and picks the 5 songs with the highest scores.
 
-I kept the starter scoring recipe.
+I kept the starter scoring recipe for ranking, and added an **AI explanation layer**
+on top. The scoring engine acts as a *retriever*: it hands the top 5 songs and their
+attributes to the Claude API, which *generates* a grounded, plain-language write-up of
+why each song fits (Retrieval-Augmented Generation). The model may only reference the
+retrieved songs; a code guardrail checks this and falls back to a template if the model
+strays or no API key is set. So the ranking is still transparent and rule-based, while
+the *explanation* is AI-generated but fact-checked against the retrieved data.
 
 ---
 
@@ -78,6 +84,13 @@ Comparing each pair (what changed, and why it makes sense):
 - **Rock vs. Jazz:** opposites, no overlap.
 
 **What surprised me:** a single song can rank high for two different listeners for completely different reasons — it matches one person's genre and another person's mood — so one versatile track shows up everywhere. It also surprised me that Lofi and Jazz are almost interchangeable: the system can't really tell two mellow, acoustic listeners apart.
+
+**Evaluating the AI layer.** For the RAG explanation I test reliability rather than
+taste. `tests/test_rag.py` checks the grounding guardrail on adversarial inputs (a
+hallucinated song title, a dropped pick, an empty reason) and confirms the offline
+fallback still produces a grounded write-up with no API key. The guardrail turns "trust
+the model" into "verify the model": any explanation that references a song outside the
+retrieved set is rejected before it can reach the user.
 
 
 ---

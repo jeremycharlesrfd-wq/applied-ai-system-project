@@ -1,18 +1,43 @@
 """
 Command line runner for the Music Recommender Simulation.
 
-This file helps you quickly run and test your recommender.
+Pipeline:
+1. load_songs() reads the catalog.
+2. recommend_songs() scores it and RETRIEVES the top-k songs (the retriever).
+3. rag.explain_recommendations() feeds those retrieved rows to Claude, which
+   GENERATES a grounded natural-language write-up (Retrieval-Augmented Generation).
+   Without an API key it degrades gracefully to a deterministic template.
 
-You will implement the functions in recommender.py:
-- load_songs
-- score_song
-- recommend_songs
+The scoring logic lives in recommender.py (load_songs, score_song, recommend_songs).
 """
 
+import logging
+import os
 import textwrap
 from typing import List, Tuple
 
+try:
+    # Load ANTHROPIC_API_KEY (and optional overrides) from a local .env if present.
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:  # dotenv is optional; env vars still work without it.
+    pass
+
+from src.rag import explain_recommendations
 from src.recommender import load_songs, recommend_songs
+
+
+def _configure_logging() -> None:
+    """Log to both the console and logs/recommender.log for an auditable run trail."""
+    os.makedirs("logs", exist_ok=True)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(os.path.join("logs", "recommender.log")),
+        ],
+    )
 
 
 # Four distinct taste profiles for the four scored rules (see README, "The
@@ -124,24 +149,34 @@ def _format_table(recommendations: List[Tuple[dict, float, str]]) -> str:
 
 
 def main() -> None:
+    _configure_logging()
     songs = load_songs("data/songs.csv")
 
     # Pick which persona to model by name; try the others from USER_PROFILES.
     profile_name = "Late-Night Jazz"
     user_prefs = USER_PROFILES[profile_name]
 
+    # Step 1-2: score the catalog and RETRIEVE the top-k songs.
     recommendations = recommend_songs(user_prefs, songs, k=5)
 
-    # Wrap the whole render in a markdown fence so it can be pasted as-is.
-    print("\n```")
+    # Step 3: GENERATE a grounded explanation from the retrieved rows (RAG).
+    explanation, used_ai = explain_recommendations(
+        profile_name, user_prefs, recommendations
+    )
 
     header = f"Top recommendations for: {profile_name}"
-    print(header)
-    print("=" * len(header) + "\n")
+    print(f"\n{header}")
+    print("=" * len(header))
 
+    source = "Claude (grounded in retrieved songs)" if used_ai \
+        else "offline fallback — no API key; set ANTHROPIC_API_KEY for AI output"
+    print(f"Explanation source: {source}\n")
+    print(explanation)
+
+    # The scoring table remains as the transparent, auditable detail behind the picks.
+    print("\nScoring detail")
+    print("--------------")
     print(_format_table(recommendations))
-
-    print("```")
 
 
 if __name__ == "__main__":
