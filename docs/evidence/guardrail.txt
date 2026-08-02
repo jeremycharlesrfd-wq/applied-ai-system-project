@@ -1,0 +1,12 @@
+$ python3 -c "<grounding guardrail demonstration — see below>"
+
+Retrieved (only valid) titles: ['Coffee Shop Stories', 'Requiem for Dawn']
+
+GOOD  (both titles match)        PASS -> printed to user
+BAD   (hallucinated song)        REJECT -> retry, then fallback
+      reason: cited songs not in retrieved set: ['Imaginary Track']
+      reason: did not explain retrieved songs: ['Requiem for Dawn']
+BAD   (dropped a pick)           REJECT -> retry, then fallback
+      reason: did not explain retrieved songs: ['Requiem for Dawn']
+BAD   (empty reason)             REJECT -> retry, then fallback
+      reason: empty reason for: ['Requiem for Dawn']

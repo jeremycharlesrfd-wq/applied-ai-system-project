@@ -1,0 +1,1 @@
+2026-08-02 16:00:26,988 INFO recommender.rag: ANTHROPIC_API_KEY not set; using offline fallback.

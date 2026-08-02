@@ -1,0 +1,43 @@
+$ python3 -m src.main
+
+2026-08-02 16:00:26,988 INFO recommender.rag: ANTHROPIC_API_KEY not set; using offline fallback.
+
+Top recommendations for: Late-Night Jazz
+========================================
+Explanation source: offline fallback — no API key; set ANTHROPIC_API_KEY for AI output
+
+_Here are 5 picks for the Late-Night Jazz taste (favorite genre 'jazz', mood 'relaxed'), chosen from the catalog by the scoring rules and explained straight from each song's attributes._
+
+1. **Coffee Shop Stories** — Slow Stereo  (score 6.37)
+   - jazz/relaxed track at energy 0.37 and acousticness 0.89
+2. **Requiem for Dawn** — String Theory Ensemble  (score 1.93)
+   - classical/melancholy track at energy 0.33 and acousticness 0.95
+3. **Library Rain** — Paper Lanterns  (score 1.86)
+   - lofi/chill track at energy 0.35 and acousticness 0.86
+4. **Spacewalk Thoughts** — Orbit Bloom  (score 1.85)
+   - ambient/chill track at energy 0.28 and acousticness 0.92
+5. **Highland Echoes** — Cinder Hollow  (score 1.73)
+   - folk/nostalgic track at energy 0.44 and acousticness 0.82
+
+Scoring detail
+--------------
++----+--------------------------+--------------------+--------+------------------------------------+
+| #  | Title                    | Artist             | Score  | Reasons                            |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 1  | Coffee Shop Stories      | Slow Stereo        | 6.37   | genre match (+3.0)                 |
+|    |                          |                    |        | mood match (+1.5)                  |
+|    |                          |                    |        | energy fit (+0.98)                 |
+|    |                          |                    |        | acoustic fit (+0.89)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 2  | Requiem for Dawn         | String Theory Ens… | 1.93   | energy fit (+0.98)                 |
+|    |                          |                    |        | acoustic fit (+0.95)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 3  | Library Rain             | Paper Lanterns     | 1.86   | energy fit (+1.00)                 |
+|    |                          |                    |        | acoustic fit (+0.86)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 4  | Spacewalk Thoughts       | Orbit Bloom        | 1.85   | energy fit (+0.93)                 |
+|    |                          |                    |        | acoustic fit (+0.92)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 5  | Highland Echoes          | Cinder Hollow      | 1.73   | energy fit (+0.91)                 |
+|    |                          |                    |        | acoustic fit (+0.82)               |
++----+--------------------------+--------------------+--------+------------------------------------+

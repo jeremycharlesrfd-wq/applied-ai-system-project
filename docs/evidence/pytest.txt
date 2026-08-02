@@ -1,0 +1,19 @@
+$ python3 -m pytest -v
+
+============================= test session starts ==============================
+platform darwin -- Python 3.13.7, pytest-9.0.3, pluggy-1.6.0 -- /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jeremycharlesrafidimanana/Documents/summer 26/codepath/Projects/ai110-module3show-musicrecommendersimulation-starter
+plugins: anyio-4.13.0
+collecting ... collected 8 items
+
+tests/test_rag.py::test_grounding_passes_when_titles_match PASSED        [ 12%]
+tests/test_rag.py::test_grounding_catches_hallucinated_song PASSED       [ 25%]
+tests/test_rag.py::test_grounding_catches_dropped_song PASSED            [ 37%]
+tests/test_rag.py::test_grounding_catches_empty_reason PASSED            [ 50%]
+tests/test_rag.py::test_fallback_runs_without_api_key PASSED             [ 62%]
+tests/test_rag.py::test_empty_recommendations_handled PASSED             [ 75%]
+tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score PASSED [ 87%]
+tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string PASSED [100%]
+
+============================== 8 passed in 0.34s ===============================

@@ -1,0 +1,3 @@
+# What This Project Says About Me as an AI Engineer
+
+This project shows I care about building AI you can see into, not just AI that works. I kept the scoring transparent, added a guardrail so the model can only talk about songs it was actually given, and — most importantly — wrote down where the system is biased instead of hiding it. That honesty matters: this is a small class project, but the same choices decide what real recommenders show people every day, and I want to be the kind of engineer who keeps those systems open and auditable.

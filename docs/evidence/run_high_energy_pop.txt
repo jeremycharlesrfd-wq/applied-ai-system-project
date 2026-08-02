@@ -1,0 +1,57 @@
+$ python3 -c "
+from src.main import USER_PROFILES, _format_table
+from src.recommender import load_songs, recommend_songs
+from src.rag import explain_recommendations
+
+name = 'High-Energy Pop'
+prefs = USER_PROFILES[name]
+songs = load_songs('data/songs.csv')
+recs = recommend_songs(prefs, songs, k=5)
+text, used_ai = explain_recommendations(name, prefs, recs)
+print('Input persona:', name, prefs)
+print('Explanation source:', 'Claude' if used_ai else 'offline fallback')
+print()
+print(text)
+print()
+print(_format_table(recs))
+"
+
+Input persona: High-Energy Pop {'favorite_genre': 'pop', 'favorite_mood': 'happy', 'target_energy': 0.9, 'likes_acoustic': False}
+Explanation source: offline fallback
+
+_Here are 5 picks for the High-Energy Pop taste (favorite genre 'pop', mood 'happy'), chosen from the catalog by the scoring rules and explained straight from each song's attributes._
+
+1. **Sunrise City** — Neon Echo  (score 6.24)
+   - pop/happy track at energy 0.82 and acousticness 0.18
+2. **Gym Hero** — Max Pulse  (score 3.92)
+   - pop/intense track at energy 0.93 and acousticness 0.05
+3. **Rooftop Lights** — Indigo Parade  (score 3.01)
+   - indie pop/happy track at energy 0.76 and acousticness 0.35
+4. **Basslight** — Deep Circuit  (score 1.91)
+   - drum and bass/euphoric track at energy 0.95 and acousticness 0.04
+5. **Iron Verdict** — Grave Meridian  (score 1.91)
+   - metal/aggressive track at energy 0.97 and acousticness 0.02
+
++----+--------------------------+--------------------+--------+------------------------------------+
+| #  | Title                    | Artist             | Score  | Reasons                            |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 1  | Sunrise City             | Neon Echo          | 6.24   | genre match (+3.0)                 |
+|    |                          |                    |        | mood match (+1.5)                  |
+|    |                          |                    |        | energy fit (+0.92)                 |
+|    |                          |                    |        | acoustic fit (+0.82)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 2  | Gym Hero                 | Max Pulse          | 3.92   | genre match (+3.0)                 |
+|    |                          |                    |        | energy fit (+0.97)                 |
+|    |                          |                    |        | acoustic fit (+0.95)               |
+|    |                          |                    |        | genre repeat (-1.0)                |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 3  | Rooftop Lights           | Indigo Parade      | 3.01   | mood match (+1.5)                  |
+|    |                          |                    |        | energy fit (+0.86)                 |
+|    |                          |                    |        | acoustic fit (+0.65)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 4  | Basslight                | Deep Circuit       | 1.91   | energy fit (+0.95)                 |
+|    |                          |                    |        | acoustic fit (+0.96)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 5  | Iron Verdict             | Grave Meridian     | 1.91   | energy fit (+0.93)                 |
+|    |                          |                    |        | acoustic fit (+0.98)               |
++----+--------------------------+--------------------+--------+------------------------------------+

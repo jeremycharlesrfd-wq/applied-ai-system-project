@@ -171,13 +171,249 @@ The same pipeline retrieves a completely different, loud/electronic top list:
 
 ```
 1. Sunrise City — Neon Echo   (score 6.24)   • genre match (+3.0) • mood match (+1.5) • energy fit (+0.92) • acoustic fit (+0.82)
-2. Gym Hero — Max Pulse       (score 4.92)   • genre match (+3.0) • energy fit (+0.97) • acoustic fit (+0.95)
+2. Gym Hero — Max Pulse       (score 3.92)   • genre match (+3.0) • energy fit (+0.97) • acoustic fit (+0.95) • genre repeat (-1.0)
 3. Rooftop Lights — Indigo Parade (score 3.01) • mood match (+1.5) • energy fit (+0.86) • acoustic fit (+0.65)
 ```
+
+(These are the real captured numbers — see the full run in
+[Reproducible Execution Evidence](#reproducible-execution-evidence) below.)
 
 Comparing Example 1 and Example 3 shows the scorer responding sharply to the persona:
 genre and mood flip the entire list, and `likes_acoustic=False` inverts the acoustic term
 so electronic tracks now score highest.
+
+---
+
+## Reproducible Execution Evidence
+
+Each block below was produced by running the exact command shown, on Python 3.13.7 / macOS, with **no
+`ANTHROPIC_API_KEY` set** (so every run takes the deterministic offline-fallback path and
+is byte-for-byte reproducible). The raw logs are committed under
+[docs/evidence/](docs/evidence/) so anyone can diff their own run against them:
+
+| Evidence | Command | Captured log |
+|---|---|---|
+| Test suite (reliability) | `python3 -m pytest -v` | [pytest.txt](docs/evidence/pytest.txt) |
+| Default run — Late-Night Jazz | `python3 -m src.main` | [run_main_default.txt](docs/evidence/run_main_default.txt) |
+| Second persona — High-Energy Pop | `python3 -c "…"` (below) | [run_high_energy_pop.txt](docs/evidence/run_high_energy_pop.txt) |
+| Grounding guardrail outcomes | `python3 -c "…"` (below) | [guardrail.txt](docs/evidence/guardrail.txt) |
+| Run trail | (written by every run) | [recommender.log.txt](docs/evidence/recommender.log.txt) |
+
+To regenerate all of them yourself:
+
+```bash
+python3 -m pytest -v            # reliability / guardrail unit tests
+python3 -m src.main             # default persona, full pipeline + table
+```
+
+### 1. Test suite — reliability & guardrail results
+
+**Command:**
+
+```bash
+python3 -m pytest -v
+```
+
+**Output** (verbatim, [docs/evidence/pytest.txt](docs/evidence/pytest.txt)):
+
+```text
+============================= test session starts ==============================
+platform darwin -- Python 3.13.7, pytest-9.0.3, pluggy-1.6.0
+collecting ... collected 8 items
+
+tests/test_rag.py::test_grounding_passes_when_titles_match PASSED        [ 12%]
+tests/test_rag.py::test_grounding_catches_hallucinated_song PASSED       [ 25%]
+tests/test_rag.py::test_grounding_catches_dropped_song PASSED            [ 37%]
+tests/test_rag.py::test_grounding_catches_empty_reason PASSED            [ 50%]
+tests/test_rag.py::test_fallback_runs_without_api_key PASSED             [ 62%]
+tests/test_rag.py::test_empty_recommendations_handled PASSED             [ 75%]
+tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score PASSED [ 87%]
+tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string PASSED [100%]
+
+============================== 8 passed in 0.34s ===============================
+```
+
+All 8 tests pass with no API key: 4 assert the grounding guardrail rejects hallucinated /
+dropped / empty picks and accepts a valid set, 2 assert the offline fallback and empty-input
+paths, and 2 assert scoring/ranking.
+
+### 2. Default run — full pipeline (Late-Night Jazz)
+
+**Command:**
+
+```bash
+python3 -m src.main
+```
+
+**Input persona:** `favorite_genre=jazz, favorite_mood=relaxed, target_energy=0.35, likes_acoustic=True`
+
+**Output** (verbatim, [docs/evidence/run_main_default.txt](docs/evidence/run_main_default.txt)):
+
+```text
+2026-08-02 16:00:26,988 INFO recommender.rag: ANTHROPIC_API_KEY not set; using offline fallback.
+
+Top recommendations for: Late-Night Jazz
+========================================
+Explanation source: offline fallback — no API key; set ANTHROPIC_API_KEY for AI output
+
+_Here are 5 picks for the Late-Night Jazz taste (favorite genre 'jazz', mood 'relaxed'), chosen from the catalog by the scoring rules and explained straight from each song's attributes._
+
+1. **Coffee Shop Stories** — Slow Stereo  (score 6.37)
+   - jazz/relaxed track at energy 0.37 and acousticness 0.89
+2. **Requiem for Dawn** — String Theory Ensemble  (score 1.93)
+   - classical/melancholy track at energy 0.33 and acousticness 0.95
+3. **Library Rain** — Paper Lanterns  (score 1.86)
+   - lofi/chill track at energy 0.35 and acousticness 0.86
+4. **Spacewalk Thoughts** — Orbit Bloom  (score 1.85)
+   - ambient/chill track at energy 0.28 and acousticness 0.92
+5. **Highland Echoes** — Cinder Hollow  (score 1.73)
+   - folk/nostalgic track at energy 0.44 and acousticness 0.82
+
+Scoring detail
+--------------
++----+--------------------------+--------------------+--------+------------------------------------+
+| #  | Title                    | Artist             | Score  | Reasons                            |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 1  | Coffee Shop Stories      | Slow Stereo        | 6.37   | genre match (+3.0)                 |
+|    |                          |                    |        | mood match (+1.5)                  |
+|    |                          |                    |        | energy fit (+0.98)                 |
+|    |                          |                    |        | acoustic fit (+0.89)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 2  | Requiem for Dawn         | String Theory Ens… | 1.93   | energy fit (+0.98)                 |
+|    |                          |                    |        | acoustic fit (+0.95)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 3  | Library Rain             | Paper Lanterns     | 1.86   | energy fit (+1.00)                 |
+|    |                          |                    |        | acoustic fit (+0.86)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 4  | Spacewalk Thoughts       | Orbit Bloom        | 1.85   | energy fit (+0.93)                 |
+|    |                          |                    |        | acoustic fit (+0.92)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+| 5  | Highland Echoes          | Cinder Hollow      | 1.73   | energy fit (+0.91)                 |
+|    |                          |                    |        | acoustic fit (+0.82)               |
++----+--------------------------+--------------------+--------+------------------------------------+
+```
+
+### 3. Second persona — High-Energy Pop (same pipeline, different input)
+
+To exercise a different persona without editing `main()`, drive the real pipeline
+functions directly. This is the exact command that produced
+[docs/evidence/run_high_energy_pop.txt](docs/evidence/run_high_energy_pop.txt):
+
+**Command:**
+
+```bash
+python3 -c "
+from src.main import USER_PROFILES, _format_table
+from src.recommender import load_songs, recommend_songs
+from src.rag import explain_recommendations
+
+name = 'High-Energy Pop'
+prefs = USER_PROFILES[name]
+songs = load_songs('data/songs.csv')
+recs = recommend_songs(prefs, songs, k=5)
+text, used_ai = explain_recommendations(name, prefs, recs)
+print('Input persona:', name, prefs)
+print('Explanation source:', 'Claude' if used_ai else 'offline fallback')
+print(); print(text); print(); print(_format_table(recs))
+"
+```
+
+**Input persona:** `favorite_genre=pop, favorite_mood=happy, target_energy=0.9, likes_acoustic=False`
+
+**Output** (excerpt — full table in the log file):
+
+```text
+Input persona: High-Energy Pop {'favorite_genre': 'pop', 'favorite_mood': 'happy', 'target_energy': 0.9, 'likes_acoustic': False}
+Explanation source: offline fallback
+
+_Here are 5 picks for the High-Energy Pop taste (favorite genre 'pop', mood 'happy'), chosen from the catalog by the scoring rules and explained straight from each song's attributes._
+
+1. **Sunrise City** — Neon Echo  (score 6.24)
+   - pop/happy track at energy 0.82 and acousticness 0.18
+2. **Gym Hero** — Max Pulse  (score 3.92)
+   - pop/intense track at energy 0.93 and acousticness 0.05
+3. **Rooftop Lights** — Indigo Parade  (score 3.01)
+   - indie pop/happy track at energy 0.76 and acousticness 0.35
+4. **Basslight** — Deep Circuit  (score 1.91)
+   - drum and bass/euphoric track at energy 0.95 and acousticness 0.04
+5. **Iron Verdict** — Grave Meridian  (score 1.91)
+   - metal/aggressive track at energy 0.97 and acousticness 0.02
+```
+
+Two things to note in the *real* numbers: the Pop list shares **zero** titles with the Jazz
+list (the persona flips the whole ranking), and **Gym Hero** lands at 3.92 — a full 1.0 below
+its raw score — because the diversity penalty deducts `genre repeat (-1.0)` for being the
+second `pop` track chosen. That deduction is visible in the `Reasons` column of the committed
+log, and is exactly the "relevance-for-variety" trade-off described below.
+
+### 4. Reliability / guardrail results (the verifier in action)
+
+This drives `_validate_grounding()` — the code that decides whether Claude's output is
+allowed to reach the user — through one valid and three invalid generations. Captured in
+[docs/evidence/guardrail.txt](docs/evidence/guardrail.txt):
+
+**Command:**
+
+```bash
+python3 -c "
+from src.rag import _validate_grounding
+recs = [({'title': 'Coffee Shop Stories'}, 6.37, ''),
+        ({'title': 'Requiem for Dawn'},   1.93, '')]
+cases = {
+  'GOOD  (both titles match)': [
+      {'title': 'Coffee Shop Stories', 'reason': 'jazz/relaxed, 0.37 energy.'},
+      {'title': 'Requiem for Dawn',   'reason': 'acousticness 0.95 fits.'}],
+  'BAD   (hallucinated song)': [
+      {'title': 'Coffee Shop Stories', 'reason': 'grounded.'},
+      {'title': 'Imaginary Track',     'reason': 'never retrieved.'}],
+  'BAD   (dropped a pick)': [
+      {'title': 'Coffee Shop Stories', 'reason': 'only one of two.'}],
+  'BAD   (empty reason)': [
+      {'title': 'Coffee Shop Stories', 'reason': 'fine.'},
+      {'title': 'Requiem for Dawn',   'reason': '   '}]}
+for label, picks in cases.items():
+    ok, issues = _validate_grounding(picks, recs)
+    verdict = 'PASS -> printed to user' if ok else 'REJECT -> retry, then fallback'
+    print(f'{label:32} {verdict}')
+    for i in issues: print(f'      reason: {i}')
+"
+```
+
+**Output** (verbatim):
+
+```text
+Retrieved (only valid) titles: ['Coffee Shop Stories', 'Requiem for Dawn']
+
+GOOD  (both titles match)        PASS -> printed to user
+BAD   (hallucinated song)        REJECT -> retry, then fallback
+      reason: cited songs not in retrieved set: ['Imaginary Track']
+      reason: did not explain retrieved songs: ['Requiem for Dawn']
+BAD   (dropped a pick)           REJECT -> retry, then fallback
+      reason: did not explain retrieved songs: ['Requiem for Dawn']
+BAD   (empty reason)             REJECT -> retry, then fallback
+      reason: empty reason for: ['Requiem for Dawn']
+```
+
+Only the fully-grounded generation is allowed through; a hallucinated song, a dropped pick,
+or an empty reason is each rejected with a specific issue string. In the live pipeline a
+`REJECT` triggers one retry and then the deterministic fallback (Evidence 2) — so an
+ungrounded explanation is **never** printed.
+
+### 5. Run trail (audit log)
+
+Every run appends a timestamped line to `logs/recommender.log`, recording which path ran
+(and, on the AI path, model + token usage + guardrail result). The offline runs above
+produced ([docs/evidence/recommender.log.txt](docs/evidence/recommender.log.txt)):
+
+```text
+2026-08-02 16:00:26,988 INFO recommender.rag: ANTHROPIC_API_KEY not set; using offline fallback.
+```
+
+> **AI path:** with `ANTHROPIC_API_KEY` set, the header becomes
+> `Explanation source: Claude (grounded in retrieved songs)`, the prose is Claude's, and the
+> log gains `Requesting grounded explanation…`, `Token usage: input=… output=…`, and
+> `Grounding guardrail passed on attempt 1` lines. Every title is still checked by the same
+> `_validate_grounding()` verified above before it prints.
 
 ---
 

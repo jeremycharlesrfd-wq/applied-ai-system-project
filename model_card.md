@@ -95,7 +95,13 @@ retrieved set is rejected before it can reach the user.
 
 ---
 
-## 8. Future Work  
+## 8. Could This Be Misused, and How Would I Prevent It?
+
+Yes. Whoever sets the weights controls the list, so a platform could quietly boost paid songs and pass it off as a personal match. To prevent that, I'd keep ranking separate from any promotion, keep the weights visible, and log any changes so the tuning can be audited instead of hidden.
+
+---
+
+## 9. Future Work  
 
 Add more songs so niche genres have real matches.
 
@@ -107,8 +113,16 @@ Write clearer explanations for each pick.
 
 ---
 
-## 9. Personal Reflection  
+## 10. Personal Reflection  
 
 The biggest thing I learned is how much the weights control everything. Genre is worth the most, so it decides the whole list. Changing one weight shifts every result.
 
 That made me more skeptical of apps like Spotify. Now I see how their choices about what to weigh can quietly bias what I hear. The picks feel personal, but they still come from someone's rules.
+
+---
+
+## 11. Collaborating with AI
+
+**A helpful suggestion.** When I added the AI explanation layer, Claude suggested treating it as *verify the model, not trust it* — add a grounding guardrail that rejects any explanation mentioning a song outside the retrieved top 5, plus an offline template fallback. That idea shaped the whole RAG design and is what the tests in `tests/test_rag.py` check.
+
+**A flawed suggestion.** Earlier, Claude suggested letting the model pick the songs too — generating the rankings, not just the explanations. That would have thrown away the transparent, rule-based scoring and made the results impossible to audit. I rejected it and kept scoring deterministic, with the AI only explaining picks it was handed. Working with AI was useful, but it still needed a human to protect the design goals.
