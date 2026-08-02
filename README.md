@@ -10,6 +10,8 @@ gets right, what it gets wrong, and how those blind spots mirror real-world reco
 It shipped with a ~10-song catalog and a scaffolded scoring recipe for the student to
 complete.
 
+Github link: https://github.com/jeremycharlesrfd-wq/applied-ai-system-project
+
 ## Title and Summary
 
 **What it does:** given a listener persona (favorite genre, mood, target energy, and
