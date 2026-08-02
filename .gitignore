@@ -17,3 +17,6 @@ venv/
 # Secrets and runtime logs
 .env
 logs/
+
+# Local Claude Code settings
+.claude/settings.local.json
